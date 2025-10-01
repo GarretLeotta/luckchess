@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "outDir": "dist",
+    "sourceMap": true,
+    "target": "ESNext",
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "strict": true
+  }
+}

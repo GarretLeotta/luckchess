@@ -2,9 +2,14 @@
   "name": "luckchess",
   "version": "1.0.0",
   "description": "Luck Chess! Game design by Tim Leamy, programming by Garret Leotta",
-  "main": "index.js",
+  "main": "main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc && npm run build:cp-public",
+    "build:cp-public": "cp ./public/** ./dist",
+    "type": "tsc --noEmit",
+    "watch": "tsc --watch",
+    "serve": "live-server ."
   },
   "repository": {
     "type": "git",
@@ -15,5 +20,9 @@
   "bugs": {
     "url": "https://github.com/GarretLeotta/luckchess/issues"
   },
-  "homepage": "https://github.com/GarretLeotta/luckchess#readme"
+  "homepage": "https://github.com/GarretLeotta/luckchess#readme",
+  "devDependencies": {
+    "live-server": "^1.2.2",
+    "typescript": "^5.9.3"
+  }
 }
