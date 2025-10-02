@@ -1,13 +1,32 @@
 import { Game } from './game.js'
-import { Renderer } from './renderer.js'
-import { Input } from './input.js'
+import { Canvas } from './canvas.js'
 
-const canvas = document.getElementById('board') as HTMLCanvasElement
-const renderer = new Renderer(canvas)
+//TODO: separate SideBarRenderer and GameboardRenderer
+const statusEl = document.getElementById('status')
+const canvasEl = document.getElementById('board') as HTMLCanvasElement
+
 const game = new Game()
+const canvas = new Canvas(canvasEl, (cx, cy) => {
+    const result = game.select({ x: cx, y: cy })
+    draw()
+    updateTurnUI()
+    updateHandsUI()
+
+    if (result.moved) {
+        if (result.captured) {
+            statusEl!.textContent = `Captured ${result.captured.c.toUpperCase()}${result.captured.t.toUpperCase()}`
+        } else {
+            statusEl!.textContent = ''
+        }
+
+        if (result.gameOver) {
+            statusEl!.textContent = `${game.turn === 'w' ? 'Black' : 'White'} wins!`
+        }
+    }
+})
 
 function draw() {
-    renderer.draw(game.board, game.selected, game.legal)
+    canvas.draw(game.board, game.selected, game.legal)
 }
 
 function updateTurnUI() {
@@ -30,13 +49,6 @@ function updateHandsUI() {
         .map(c => `${c.pieceType.toUpperCase()} -> ${c.movesAs.toUpperCase()}`)
         .join(', ')
 }
-
-new Input(canvas, (cx, cy) => {
-    const moved = game.select({ x: cx, y: cy })
-    draw()
-    updateTurnUI()
-    updateHandsUI()
-})
 
 draw()
 updateTurnUI()

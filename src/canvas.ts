@@ -1,12 +1,24 @@
-import { BoardGrid, PieceType, MoveWithCard } from './game'
+import { BoardGrid, PieceType, MoveWithCard, inBounds } from './game'
 
-export class Renderer {
+export class Canvas {
     private ctx: CanvasRenderingContext2D
     private cell: number
 
-    constructor(private canvas: HTMLCanvasElement) {
+    constructor(
+        private canvas: HTMLCanvasElement,
+        //Operates in pixels
+        private onClick: (x: number, y: number) => void
+    ) {
         this.ctx = canvas.getContext('2d')!
         this.cell = canvas.width / 8
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect()
+            const tileW = rect.width / 8
+            const tileH = rect.height / 8
+            const cx = Math.floor((e.clientX - rect.left) / tileW)
+            const cy = Math.floor((e.clientY - rect.top) / tileH)
+            if (inBounds({ x: cx, y: cy })) onClick(cx, cy)
+        })
     }
 
     draw(board: BoardGrid, selected: { x: number, y: number } | null, legal: MoveWithCard[]) {

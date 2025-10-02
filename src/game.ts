@@ -29,6 +29,15 @@ export interface Player {
     cards: Card[]
 }
 
+export interface SelectResult {
+    moved: boolean
+    from?: Coordinate
+    to?: Coordinate
+    card?: Card
+    captured?: Piece
+    gameOver: boolean
+}
+
 export const players: Record<Color, Player> = {
     w: { color: 'w', cards: [{ pieceType: 'p', movesAs: 'r', used: false }, { pieceType: 'q', movesAs: 'n', used: false }] },
     b: { color: 'b', cards: [{ pieceType: 'p', movesAs: 'r', used: false }, { pieceType: 'q', movesAs: 'n', used: false }] }
@@ -46,6 +55,7 @@ export class Game {
     players: Record<Color, Player>
     lastDoublePawn: Coordinate & { color: Color } | null
     castleRights: { [C in Color]: { kingSide: boolean, queenSide: boolean } }
+    gameOver: boolean
 
     constructor() {
         this.board = this.initBoard()
@@ -55,19 +65,23 @@ export class Game {
         this.players = players
         this.lastDoublePawn = null
         this.castleRights = { w: { kingSide: true, queenSide: true }, b: { kingSide: true, queenSide: true } }
+        this.gameOver = false
     }
 
     get currentHand() {
         return this.players[this.turn].cards.filter(c => !c.used)
     }
 
-    select(coord: Coordinate): boolean {
+    select(coord: Coordinate): SelectResult {
         const clicked = this.board[coord.y][coord.x]
         if (this.selected) {
             const legalMove = this.legal.find(m => m.move.x === coord.x && m.move.y === coord.y)
             if (legalMove) {
-                this.makeMove(this.selected, coord, legalMove.card)
-                return true
+                const from = { ...this.selected }
+                const to = { ...coord }
+                const captured = this.board[to.y][to.x] ?? undefined
+                this.makeMove(from, to, legalMove.card)
+                return { moved: true, from, to, card: legalMove.card, captured, gameOver: this.gameOver }
             }
         }
         if (clicked && clicked.c === this.turn) {
@@ -77,13 +91,16 @@ export class Game {
             this.selected = null
             this.legal = []
         }
-        return false
+        return { moved: false, gameOver: this.gameOver }
     }
 
     makeMove(from: Coordinate, to: Coordinate, card?: Card) {
         const b2 = this.cloneBoard()
         const moving = b2[from.y][from.x]
         if (!moving) return
+
+        const target = b2[to.y][to.x]
+        if (target && target.t === 'k') this.gameOver = true
 
         b2[to.y][to.x] = moving
         b2[from.y][from.x] = null
