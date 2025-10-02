@@ -11,7 +11,7 @@ export class Input {
             const tileH = rect.height / 8
             const cx = Math.floor((e.clientX - rect.left) / tileW)
             const cy = Math.floor((e.clientY - rect.top) / tileH)
-            if (inBounds(cx, cy)) onClick(cx, cy)
+            if (inBounds({ x: cx, y: cy })) onClick(cx, cy)
         })
     }
 }

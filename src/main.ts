@@ -32,7 +32,7 @@ function updateHandsUI() {
 }
 
 new Input(canvas, (cx, cy) => {
-    const moved = game.select(cx, cy)
+    const moved = game.select({ x: cx, y: cy })
     draw()
     updateTurnUI()
     updateHandsUI()

@@ -14,8 +14,13 @@ export type Card = {
     used: boolean
 }
 
+export interface Coordinate {
+    x: number
+    y: number
+}
+
 export type MoveWithCard = {
-    move: { x: number, y: number }
+    move: Coordinate
     card?: Card
 }
 
@@ -29,17 +34,17 @@ export const players: Record<Color, Player> = {
     b: { color: 'b', cards: [{ pieceType: 'p', movesAs: 'r', used: false }, { pieceType: 'q', movesAs: 'n', used: false }] }
 }
 
-export function inBounds(x: number, y: number) {
-    return x >= 0 && x < 8 && y >= 0 && y < 8
+export function inBounds(coord: Coordinate) {
+    return coord.x >= 0 && coord.x < 8 && coord.y >= 0 && coord.y < 8
 }
 
 export class Game {
     board: BoardGrid
     turn: Color
-    selected: { x: number, y: number } | null
+    selected: Coordinate | null
     legal: MoveWithCard[]
     players: Record<Color, Player>
-    lastDoublePawn: { x: number, y: number, color: Color } | null
+    lastDoublePawn: Coordinate & { color: Color } | null
     castleRights: { [C in Color]: { kingSide: boolean, queenSide: boolean } }
 
     constructor() {
@@ -56,18 +61,18 @@ export class Game {
         return this.players[this.turn].cards.filter(c => !c.used)
     }
 
-    select(x: number, y: number): boolean {
-        const clicked = this.board[y][x]
+    select(coord: Coordinate): boolean {
+        const clicked = this.board[coord.y][coord.x]
         if (this.selected) {
-            const legalMove = this.legal.find(m => m.move.x === x && m.move.y === y)
+            const legalMove = this.legal.find(m => m.move.x === coord.x && m.move.y === coord.y)
             if (legalMove) {
-                this.makeMove(this.selected.x, this.selected.y, x, y, legalMove.card)
+                this.makeMove(this.selected, coord, legalMove.card)
                 return true
             }
         }
         if (clicked && clicked.c === this.turn) {
-            this.selected = { x, y }
-            this.legal = this.generateMoves(x, y)
+            this.selected = { ...coord }
+            this.legal = this.generateMoves(coord)
         } else {
             this.selected = null
             this.legal = []
@@ -75,36 +80,34 @@ export class Game {
         return false
     }
 
-    makeMove(sx: number, sy: number, dx: number, dy: number, card?: Card) {
+    makeMove(from: Coordinate, to: Coordinate, card?: Card) {
         const b2 = this.cloneBoard()
-        const moving = b2[sy][sx]
+        const moving = b2[from.y][from.x]
         if (!moving) return
 
-        b2[dy][dx] = moving
-        b2[sy][sx] = null
+        b2[to.y][to.x] = moving
+        b2[from.y][from.x] = null
 
         // pawn promotion
-        if (moving.t === 'p' && ((moving.c === 'w' && dy === 0) || (moving.c === 'b' && dy === 7))) {
-            b2[dy][dx] = { t: 'q', c: moving.c }
+        if (moving.t === 'p' && ((moving.c === 'w' && to.y === 0) || (moving.c === 'b' && to.y === 7))) {
+            b2[to.y][to.x] = { t: 'q', c: moving.c }
         }
 
-        // en passant capture
+        // en passant
         if (moving.t === 'p' && this.lastDoublePawn) {
-            if (dx === this.lastDoublePawn.x && sy === this.lastDoublePawn.y && moving.c !== this.lastDoublePawn.color) {
+            if (to.x === this.lastDoublePawn.x && from.y === this.lastDoublePawn.y && moving.c !== this.lastDoublePawn.color) {
                 b2[this.lastDoublePawn.y][this.lastDoublePawn.x] = null
             }
         }
 
         // castling
-        if (moving.t === 'k' && Math.abs(dx - sx) === 2) {
-            if (dx > sx) {
-                // king-side
-                b2[dy][5] = b2[dy][7]
-                b2[dy][7] = null
+        if (moving.t === 'k' && Math.abs(to.x - from.x) === 2) {
+            if (to.x > from.x) {
+                b2[to.y][5] = b2[to.y][7]
+                b2[to.y][7] = null
             } else {
-                // queen-side
-                b2[dy][3] = b2[dy][0]
-                b2[dy][0] = null
+                b2[to.y][3] = b2[to.y][0]
+                b2[to.y][0] = null
             }
         }
 
@@ -114,16 +117,16 @@ export class Game {
             this.castleRights[moving.c].queenSide = false
         }
         if (moving.t === 'r') {
-            if (sy === (moving.c === 'w' ? 7 : 0)) {
-                if (sx === 0) this.castleRights[moving.c].queenSide = false
-                if (sx === 7) this.castleRights[moving.c].kingSide = false
+            if (from.y === (moving.c === 'w' ? 7 : 0)) {
+                if (from.x === 0) this.castleRights[moving.c].queenSide = false
+                if (from.x === 7) this.castleRights[moving.c].kingSide = false
             }
         }
 
         // track double pawn push
         this.lastDoublePawn = null
-        if (moving.t === 'p' && Math.abs(dy - sy) === 2) {
-            this.lastDoublePawn = { x: dx, y: dy, color: moving.c }
+        if (moving.t === 'p' && Math.abs(to.y - from.y) === 2) {
+            this.lastDoublePawn = { x: to.x, y: to.y, color: moving.c }
         }
 
         if (card) card.used = true
@@ -134,23 +137,21 @@ export class Game {
         this.legal = []
     }
 
-    generateMoves(x: number, y: number): MoveWithCard[] {
-        const piece = this.board[y][x]
+    generateMoves(coord: Coordinate): MoveWithCard[] {
+        const piece = this.board[coord.y][coord.x]
         if (!piece) return []
 
-        const normalMoves = this.generateMovesForType(x, y, piece.t)
+        const normalMoves = this.generateMovesForType(coord, piece.t)
         const moves: MoveWithCard[] = normalMoves.map(m => ({ move: m }))
         const occupied = new Set(normalMoves.map(m => `${m.x},${m.y}`))
 
         this.currentHand.forEach(card => {
             if (card.used) return
             if (card.pieceType === piece.t) {
-                const cardMoves = this.generateMovesForType(x, y, card.movesAs)
+                const cardMoves = this.generateMovesForType(coord, card.movesAs)
                 cardMoves.forEach(m => {
                     const key = `${m.x},${m.y}`
-                    if (!occupied.has(key)) {
-                        moves.push({ move: m, card })
-                    }
+                    if (!occupied.has(key)) moves.push({ move: m, card })
                 })
             }
         })
@@ -158,73 +159,70 @@ export class Game {
         return moves
     }
 
-    private cloneBoard(): BoardGrid {
-        return this.board.map(row => row.map(cell => cell ? { ...cell } : null))
-    }
 
-    private pawnMoves(x: number, y: number, piece: Piece): { x: number, y: number }[] {
-        const moves: { x: number, y: number }[] = []
+    private cloneBoard(): BoardGrid { return this.board.map(row => row.map(c => c ? { ...c } : null)) }
+
+    private pawnMoves(coord: Coordinate, piece: Piece): Coordinate[] {
+        const moves: Coordinate[] = []
         const dir = piece.c === 'w' ? -1 : 1
-        const nx = x
-        const ny = y + dir
+        const forward: Coordinate = { x: coord.x, y: coord.y + dir }
 
-        if (inBounds(nx, ny) && !this.board[ny][nx]) {
-            moves.push({ x: nx, y: ny })
+        if (inBounds(forward) && !this.board[forward.y][forward.x]) {
+            moves.push({ ...forward })
             const startRank = piece.c === 'w' ? 6 : 1
-            if (y === startRank && !this.board[ny + dir][nx]) moves.push({ x: nx, y: ny + dir })
+            const doubleForward: Coordinate = { x: forward.x, y: forward.y + dir }
+            if (coord.y === startRank && !this.board[doubleForward.y][doubleForward.x]) moves.push(doubleForward)
         }
 
         for (const dx of [-1, 1]) {
-            const cx = x + dx
-            const cy = y + dir
-            if (inBounds(cx, cy) && this.board[cy][cx] && this.board[cy][cx]!.c !== piece.c) moves.push({ x: cx, y: cy })
+            const attack: Coordinate = { x: coord.x + dx, y: coord.y + dir }
+            if (inBounds(attack) && this.board[attack.y][attack.x] && this.board[attack.y][attack.x]!.c !== piece.c) moves.push(attack)
         }
 
         if (this.lastDoublePawn) {
-            if (Math.abs(this.lastDoublePawn.x - x) === 1 && this.lastDoublePawn.y === y && this.lastDoublePawn.color !== piece.c) {
-                moves.push({ x: this.lastDoublePawn.x, y: y + dir })
+            if (Math.abs(this.lastDoublePawn.x - coord.x) === 1 && this.lastDoublePawn.y === coord.y && this.lastDoublePawn.color !== piece.c) {
+                moves.push({ x: this.lastDoublePawn.x, y: coord.y + dir })
             }
         }
 
         return moves
     }
 
-    private knightMoves(x: number, y: number, piece: Piece) {
-        const deltas = [[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]]
-        const moves: { x: number, y: number }[] = []
+    private knightMoves(coord: Coordinate, piece: Piece): Coordinate[] {
+        const deltas = [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]]
+        const moves: Coordinate[] = []
         for (const [dx, dy] of deltas) {
-            const cx = x + dx, cy = y + dy
-            if (!inBounds(cx, cy)) continue
-            if (!this.board[cy][cx] || this.board[cy][cx]!.c !== piece.c) moves.push({ x: cx, y: cy })
+            const c: Coordinate = { x: coord.x + dx, y: coord.y + dy }
+            if (!inBounds(c)) continue
+            if (!this.board[c.y][c.x] || this.board[c.y][c.x]!.c !== piece.c) moves.push(c)
         }
         return moves
     }
 
-    private slidingMoves(x: number, y: number, piece: Piece, dirs: number[][]) {
-        const moves: { x: number, y: number }[] = []
+    private slidingMoves(coord: Coordinate, piece: Piece, dirs: number[][]): Coordinate[] {
+        const moves: Coordinate[] = []
         for (const [dx, dy] of dirs) {
-            let cx = x + dx, cy = y + dy
-            while (inBounds(cx, cy)) {
-                if (!this.board[cy][cx]) moves.push({ x: cx, y: cy })
-                else { if (this.board[cy][cx]!.c !== piece.c) moves.push({ x: cx, y: cy }); break }
-                cx += dx
-                cy += dy
+            let c: Coordinate = { x: coord.x + dx, y: coord.y + dy }
+            while (inBounds(c)) {
+                if (!this.board[c.y][c.x]) moves.push({ ...c })
+                else { if (this.board[c.y][c.x]!.c !== piece.c) moves.push({ ...c }); break }
+                c = { x: c.x + dx, y: c.y + dy }
             }
         }
         return moves
     }
 
-    private bishopMoves(x: number, y: number, piece: Piece) { return this.slidingMoves(x, y, piece, [[1,1],[1,-1],[-1,1],[-1,-1]]) }
-    private rookMoves(x: number, y: number, piece: Piece) { return this.slidingMoves(x, y, piece, [[1,0],[-1,0],[0,1],[0,-1]]) }
-    private queenMoves(x: number, y: number, piece: Piece) { return this.slidingMoves(x, y, piece, [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]) }
+    private bishopMoves(coord: Coordinate, piece: Piece) { return this.slidingMoves(coord, piece, [[1, 1], [1, -1], [-1, 1], [-1, -1]]) }
+    private rookMoves(coord: Coordinate, piece: Piece) { return this.slidingMoves(coord, piece, [[1, 0], [-1, 0], [0, 1], [0, -1]]) }
+    private queenMoves(coord: Coordinate, piece: Piece) { return this.slidingMoves(coord, piece, [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) }
 
-    private kingMoves(x: number, y: number, piece: Piece) {
-        const moves: { x: number, y: number }[] = []
-        for (const dx of [-1,0,1]) for (const dy of [-1,0,1]) {
+    private kingMoves(coord: Coordinate, piece: Piece): Coordinate[] {
+        const moves: Coordinate[] = []
+        for (const dx of [-1, 0, 1]) for (const dy of [-1, 0, 1]) {
             if (dx === 0 && dy === 0) continue
-            const cx = x + dx, cy = y + dy
-            if (!inBounds(cx, cy)) continue
-            if (!this.board[cy][cx] || this.board[cy][cx]!.c !== piece.c) moves.push({ x: cx, y: cy })
+            const c: Coordinate = { x: coord.x + dx, y: coord.y + dy }
+            if (!inBounds(c)) continue
+            if (!this.board[c.y][c.x] || this.board[c.y][c.x]!.c !== piece.c) moves.push(c)
         }
 
         const rights = this.castleRights[piece.c]
@@ -240,15 +238,15 @@ export class Game {
         return moves
     }
 
-    private generateMovesForType(x: number, y: number, type: PieceType) {
-        const piece = this.board[y][x]!
+    private generateMovesForType(coord: Coordinate, type: PieceType): Coordinate[] {
+        const piece = this.board[coord.y][coord.x]!
         switch (type) {
-            case 'p': return this.pawnMoves(x, y, piece)
-            case 'n': return this.knightMoves(x, y, piece)
-            case 'b': return this.bishopMoves(x, y, piece)
-            case 'r': return this.rookMoves(x, y, piece)
-            case 'q': return this.queenMoves(x, y, piece)
-            case 'k': return this.kingMoves(x, y, piece)
+            case 'p': return this.pawnMoves(coord, piece)
+            case 'n': return this.knightMoves(coord, piece)
+            case 'b': return this.bishopMoves(coord, piece)
+            case 'r': return this.rookMoves(coord, piece)
+            case 'q': return this.queenMoves(coord, piece)
+            case 'k': return this.kingMoves(coord, piece)
         }
         return []
     }
@@ -256,11 +254,11 @@ export class Game {
     private initBoard(): BoardGrid {
         const emptyRow: (Piece | null)[] = Array(8).fill(null)
         const b: BoardGrid = []
-        b.push([{ t:'r',c:'b' },{ t:'n',c:'b' },{ t:'b',c:'b' },{ t:'q',c:'b' },{ t:'k',c:'b' },{ t:'b',c:'b' },{ t:'n',c:'b' },{ t:'r',c:'b' }])
-        b.push(Array.from({length:8},()=>({ t:'p',c:'b' })))
-        for (let i=0;i<4;i++) b.push([...emptyRow])
-        b.push(Array.from({length:8},()=>({ t:'p',c:'w' })))
-        b.push([{ t:'r',c:'w' },{ t:'n',c:'w' },{ t:'b',c:'w' },{ t:'q',c:'w' },{ t:'k',c:'w' },{ t:'b',c:'w' },{ t:'n',c:'w' },{ t:'r',c:'w' }])
+        b.push([{ t: 'r', c: 'b' }, { t: 'n', c: 'b' }, { t: 'b', c: 'b' }, { t: 'q', c: 'b' }, { t: 'k', c: 'b' }, { t: 'b', c: 'b' }, { t: 'n', c: 'b' }, { t: 'r', c: 'b' }])
+        b.push(Array.from({ length: 8 }, () => ({ t: 'p', c: 'b' })))
+        for (let i = 0; i < 4; i++) b.push([...emptyRow])
+        b.push(Array.from({ length: 8 }, () => ({ t: 'p', c: 'w' })))
+        b.push([{ t: 'r', c: 'w' }, { t: 'n', c: 'w' }, { t: 'b', c: 'w' }, { t: 'q', c: 'w' }, { t: 'k', c: 'w' }, { t: 'b', c: 'w' }, { t: 'n', c: 'w' }, { t: 'r', c: 'w' }])
         return b
     }
 }
