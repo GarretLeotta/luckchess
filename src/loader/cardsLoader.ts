@@ -10,8 +10,8 @@ export interface CardsConfig {
     cards: CardDef[]
 }
 
-export async function loadCardsConfig(): Promise<CardsConfig> {
-    const resp = await fetch('/src/data/cards.json')
+export async function loadCardsConfig(filepath: string): Promise<CardsConfig> {
+    const resp = await fetch(filepath)
     const raw = await resp.json()
 
     if (!Array.isArray(raw.cards)) throw new Error('cards.json must have "cards" array')

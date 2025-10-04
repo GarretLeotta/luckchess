@@ -21,8 +21,8 @@ export type MoveConfig =
 
 export type MovesConfig = Record<string, MoveConfig>
 
-export async function loadMovesConfig(): Promise<MovesConfig> {
-    const resp = await fetch('/src/data/moves.json')
+export async function loadMovesConfig(filepath: string): Promise<MovesConfig> {
+    const resp = await fetch(filepath)
     const raw: unknown = await resp.json()
 
     if (typeof raw !== 'object' || raw === null) {

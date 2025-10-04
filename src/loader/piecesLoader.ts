@@ -6,8 +6,8 @@ export interface PieceDef {
 
 export type PiecesConfig = Record<PieceType, PieceDef>
 
-export async function loadPiecesConfig(): Promise<PiecesConfig> {
-    const resp = await fetch('/src/data/pieces.json')
+export async function loadPiecesConfig(filepath: string): Promise<PiecesConfig> {
+    const resp = await fetch(filepath)
     const raw: unknown = await resp.json()
     if (typeof raw !== 'object' || raw === null) {
         throw new Error('Invalid moves.json root')

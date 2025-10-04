@@ -17,8 +17,8 @@ export interface BoardConfig {
     pieces: BoardPiece[]
 }
 
-export async function loadBoardConfig(): Promise<BoardConfig> {
-    const resp = await fetch('/src/data/board.json')
+export async function loadBoardConfig(filepath: string): Promise<BoardConfig> {
+    const resp = await fetch(filepath)
     const raw = await resp.json()
 
     if (typeof raw.width !== 'number') throw new Error('Board width must be a number')

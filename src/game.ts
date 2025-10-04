@@ -64,12 +64,13 @@ export class Game {
         this.gameOver = false
     }
 
+    //TODO: take a root prefix
     static async create(): Promise<Game> {
         const [moves, pieces, board, cards] = await Promise.all([
-            loadMovesConfig(),
-            loadPiecesConfig(),
-            loadBoardConfig(),
-            loadCardsConfig()
+            loadMovesConfig('/src/data/moves.json'),
+            loadPiecesConfig('/src/data/pieces.json'),
+            loadBoardConfig('/src/data/board.json'),
+            loadCardsConfig('/src/data/cards.json'),
         ])
         return new Game(moves, pieces, board, cards)
     }

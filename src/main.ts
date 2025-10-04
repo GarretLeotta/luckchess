@@ -9,10 +9,10 @@ import { loadPiecesConfig } from './loader/piecesLoader.js'
 const statusEl = document.getElementById('status')
 const canvasEl = document.getElementById('board') as HTMLCanvasElement
 
-const movesConfig = await loadMovesConfig()
-const piecesConfig = await loadPiecesConfig()
-const boardConfig = await loadBoardConfig()
-const cardsConfig = await loadCardsConfig()
+const movesConfig = await loadMovesConfig('/src/data/moves.json')
+const piecesConfig = await loadPiecesConfig('/src/data/pieces.json')
+const boardConfig = await loadBoardConfig('/src/data/board.json')
+const cardsConfig = await loadCardsConfig('/src/data/cards.json')
 
 const game = new Game(movesConfig, piecesConfig, boardConfig, cardsConfig)
 const canvas = new Canvas(canvasEl, boardConfig, (cx, cy) => {
