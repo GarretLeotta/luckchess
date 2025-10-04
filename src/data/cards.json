@@ -1,0 +1,6 @@
+{
+    "cards": [
+        { "pieceType": "p", "movesAs": "r", "frequency": 4 },
+        { "pieceType": "q", "movesAs": "n", "frequency": 2 }
+    ]
+}

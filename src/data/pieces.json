@@ -1,0 +1,8 @@
+{
+    "p": { "name": "Pawn" },
+    "n": { "name": "Knight" },
+    "b": { "name": "Bishop" },
+    "r": { "name": "Rook" },
+    "q": { "name": "Queen" },
+    "k": { "name": "King" }
+}
