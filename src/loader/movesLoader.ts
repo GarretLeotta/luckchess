@@ -4,6 +4,7 @@ export type MoveConfig =
     | {
         type: 'pawn'
         deltas: [number, number][]
+        //TODO: this should be tracked on instantiated Pieces as "hasMoved" This row method won't work for dynamic sized boards
         doubleStart: [number, number]
         captures: [number, number][]
         promotions: string[]

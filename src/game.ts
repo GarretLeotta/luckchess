@@ -1,8 +1,19 @@
 import { loadMovesConfig, MoveConfig, MovesConfig } from './loader/movesLoader.js'
 import { loadPiecesConfig, PiecesConfig } from './loader/piecesLoader.js'
-import { loadBoardConfig, BoardConfig, inBounds } from './loader/boardLoader.js'
+import { BoardConfig } from './loader/boardLoader.js'
 import { loadCardsConfig, CardsConfig } from './loader/cardsLoader.js'
-import { BoardGrid, Card, Color, Coordinate, Piece, PieceType } from './types.js'
+import { Card, Color, Piece } from './types.js'
+import { Coordinate } from './coordinate.js'
+import { Board } from './board.js'
+
+//TODO: handle drawing cards as a move
+export type Move = {
+    piece: Piece
+    from: Coordinate
+    to: Coordinate
+    captured?: Piece
+    card?: Card
+}
 
 export type MoveWithCard = {
     move: Coordinate
@@ -24,17 +35,16 @@ export interface SelectResult {
 }
 
 export class Game {
-    board: BoardGrid
+    board: Board
     turn: Color
     selected: Coordinate | null
     legal: MoveWithCard[]
     players: Record<Color, Player>
-    lastDoublePawn: (Coordinate & { color: Color }) | null
+    lastDoublePawn: Piece | null
     castleRights: { [C in Color]: { kingSide: boolean; queenSide: boolean } }
     gameOver: boolean
     movesConfig: MovesConfig
     piecesConfig: PiecesConfig
-    boardConfig: BoardConfig
     cardsConfig: CardsConfig
 
     constructor(
@@ -45,10 +55,9 @@ export class Game {
     ) {
         this.movesConfig = movesConfig
         this.piecesConfig = piecesConfig
-        this.boardConfig = boardConfig
+        this.board = Board.fromConfig(boardConfig)
         this.cardsConfig = cardsConfig
 
-        this.board = this.initBoard(boardConfig)
         this.turn = 'w'
         this.selected = null
         this.legal = []
@@ -69,7 +78,7 @@ export class Game {
         const [moves, pieces, board, cards] = await Promise.all([
             loadMovesConfig('/src/data/moves.json'),
             loadPiecesConfig('/src/data/pieces.json'),
-            loadBoardConfig('/src/data/board.json'),
+            BoardConfig.load('/src/data/board.json'),
             loadCardsConfig('/src/data/cards.json'),
         ])
         return new Game(moves, pieces, board, cards)
@@ -80,19 +89,20 @@ export class Game {
     }
 
     select(coord: Coordinate): SelectResult {
-        const clicked = this.board[coord.y][coord.x]
+        // console.log(`Selected: ${coord.index} ${coord.algebraicPosition}`)
+        const clicked = this.board.getPiece(coord)
         if (this.selected) {
             const legalMove = this.legal.find(m => m.move.x === coord.x && m.move.y === coord.y)
             if (legalMove) {
-                const from = { ...this.selected }
-                const to = { ...coord }
-                const captured = this.board[to.y][to.x] ?? undefined
+                const from = this.selected.copy()
+                const to = coord.copy()
+                const captured = this.board.getPiece(to) ?? undefined
                 this.makeMove(from, to, legalMove.card)
                 return { moved: true, from, to, card: legalMove.card, captured, gameOver: this.gameOver }
             }
         }
-        if (clicked && clicked.c === this.turn) {
-            this.selected = { ...coord }
+        if (clicked && clicked.color === this.turn) {
+            this.selected = coord.copy()
             this.legal = this.generateMoves(coord)
         } else {
             this.selected = null
@@ -102,67 +112,76 @@ export class Game {
     }
 
     makeMove(from: Coordinate, to: Coordinate, card?: Card) {
-        const b2 = this.cloneBoard()
-        const moving = b2[from.y][from.x]
+        const moving = this.board.getPiece(from)
         if (!moving) return
 
-        const target = b2[to.y][to.x]
-        if (target && target.t === 'k') this.gameOver = true
+        const target = this.board.getPiece(to)
+        if (target && target.type === 'k') this.gameOver = true
 
         // en passant capture
-        if (moving.t === 'p' && this.lastDoublePawn) {
+        //TODO: handle cards
+        if (this.movesConfig[moving.type].type == "pawn" && this.lastDoublePawn) {
             const ep = this.lastDoublePawn
-            const dir = moving.c === 'w' ? -1 : 1
+            const dir = moving.color === 'w' ? 1 : -1
             if (
-                to.x === ep.x &&
+                to.x === ep.position.x &&
                 to.y === from.y + dir &&
-                ep.y === from.y &&
-                ep.color !== moving.c &&
+                ep.position.y === from.y &&
+                ep.color !== moving.color &&
                 !target // ensure normal capture did not occur
             ) {
-                b2[ep.y][ep.x] = null
+                //kill the pawn
+                this.board.setPiece(ep.position, null)
             }
         }
 
-        b2[to.y][to.x] = moving
-        b2[from.y][from.x] = null
+        this.board.movePiece(from, to)
 
-        // pawn promotion (use JSON promotions)
-        if (moving.t === 'p' && ((moving.c === 'w' && to.y === 0) || (moving.c === 'b' && to.y === this.board.length - 1))) {
+        // pawn promotion
+        if (
+            //TODO: any piece should be able to promote, if configged
+            this.movesConfig[moving.type].type == "pawn" && (
+                (moving.color === 'w' && to.y === 0) ||
+                (moving.color === 'b' && to.y === this.board.height - 1))
+        ) {
             const pawnConfig = this.movesConfig['p'] as Extract<MoveConfig, { type: 'pawn' }>
             const promotionType = pawnConfig.promotions[0] // choose default, could allow selection
-            b2[to.y][to.x] = { t: promotionType, c: moving.c }
+            moving.type = promotionType
+            this.board.setPiece(to, moving)
         }
 
         // castling
-        if (moving.t === 'k' && Math.abs(to.x - from.x) === 2) {
+        if (moving.type === 'k' && Math.abs(to.x - from.x) === 2) {
             if (to.x > from.x) {
-                b2[to.y][5] = b2[to.y][7]
-                b2[to.y][7] = null
+                this.board.movePiece(
+                    Coordinate.fromIndex({x: 7, y: to.y}),
+                    Coordinate.fromIndex({x: 5, y: to.y}),
+                )
             } else {
-                b2[to.y][3] = b2[to.y][0]
-                b2[to.y][0] = null
+                this.board.movePiece(
+                    Coordinate.fromIndex({x: 3, y: to.y}),
+                    Coordinate.fromIndex({x: 0, y: to.y}),
+                )
             }
         }
 
         // update castle rights
-        if (moving.t === 'k') this.castleRights[moving.c].kingSide = this.castleRights[moving.c].queenSide = false
-        if (moving.t === 'r') {
-            if (from.y === (moving.c === 'w' ? 7 : 0)) {
-                if (from.x === 0) this.castleRights[moving.c].queenSide = false
-                if (from.x === 7) this.castleRights[moving.c].kingSide = false
+        if (moving.type === 'k') this.castleRights[moving.color].kingSide = this.castleRights[moving.color].queenSide = false
+        if (moving.type === 'r') {
+            if (from.y === (moving.color === 'w' ? 7 : 0)) {
+                if (from.x === 0) this.castleRights[moving.color].queenSide = false
+                if (from.x === 7) this.castleRights[moving.color].kingSide = false
             }
         }
 
         // track double pawn push
         this.lastDoublePawn = null
-        if (moving.t === 'p' && Math.abs(to.y - from.y) === 2) {
-            this.lastDoublePawn = { x: to.x, y: to.y, color: moving.c }
+        if (moving.type === 'p' && Math.abs(to.y - from.y) === 2) {
+            this.lastDoublePawn = moving
         }
 
         if (card) card.used = true
 
-        this.board = b2
         this.turn = this.turn === 'w' ? 'b' : 'w'
         this.selected = null
         this.legal = []
@@ -170,15 +189,15 @@ export class Game {
 
 
     generateMoves(coord: Coordinate): MoveWithCard[] {
-        const piece = this.board[coord.y][coord.x]
+        const piece = this.board.getPiece(coord)
         if (!piece) return []
-        const normalMoves = this.generateMovesForType(coord, piece.t)
+        const normalMoves = this.generateMovesForType(coord, piece.type)
         const moves: MoveWithCard[] = normalMoves.map(m => ({ move: m }))
         const occupied = new Set(normalMoves.map(m => `${m.x},${m.y}`))
 
         this.currentHand.forEach(card => {
             if (card.used) return
-            if (card.pieceType === piece.t) {
+            if (card.pieceType === piece.type) {
                 const cardMoves = this.generateMovesForType(coord, card.movesAs)
                 cardMoves.forEach(m => {
                     const key = `${m.x},${m.y}`
@@ -186,14 +205,14 @@ export class Game {
                 })
             }
         })
-
+        // console.log(`Moves: ${JSON.stringify(moves)}`)
         return moves
     }
 
     private generateMovesForType(coord: Coordinate, type: string): Coordinate[] {
-        const piece = this.board[coord.y][coord.x]!
+        const piece = this.board.getPiece(coord)
         const config = this.movesConfig[type]
-        if (!config) return []
+        if (!piece || !config) return []
 
         switch (config.type) {
             case 'pawn':
@@ -207,32 +226,31 @@ export class Game {
 
     private generatePawnMoves(coord: Coordinate, piece: Piece, cfg: Extract<MoveConfig, { type: 'pawn' }>): Coordinate[] {
         const moves: Coordinate[] = []
-        const dir = piece.c === 'w' ? -1 : 1
-
+        const dir = piece.color === 'w' ? 1 : -1
         // normal forward moves
         for (const [dx, dy] of cfg.deltas) {
-            const target = { x: coord.x + dx, y: coord.y + dy * dir }
-            if (inBounds(this.boardConfig, target) && !this.board[target.y][target.x]) {
+            const target = Coordinate.fromIndex({ x: coord.x + dx, y: coord.y + dy * dir })
+            if (this.board.inBounds(target) && !this.board.getPiece(target)) {
                 moves.push(target)
             }
         }
 
         // double move from start rank
-        const startRank = piece.c === 'w' ? cfg.doubleStart[1] : cfg.doubleStart[0]
+        const startRank = piece.color === 'w' ? cfg.doubleStart[1] : cfg.doubleStart[0]
         if (coord.y === startRank) {
-            const intermediate = { x: coord.x, y: coord.y + dir }
-            const doubleForward = { x: coord.x, y: coord.y + 2 * dir }
-            if (inBounds(this.boardConfig, doubleForward) && !this.board[intermediate.y][intermediate.x] && !this.board[doubleForward.y][doubleForward.x]) {
+            const intermediate = Coordinate.fromIndex({ x: coord.x, y: coord.y + dir })
+            const doubleForward = Coordinate.fromIndex({ x: coord.x, y: coord.y + 2 * dir })
+            if (this.board.inBounds(doubleForward) && !this.board.getPiece(intermediate) && !this.board.getPiece(doubleForward)) {
                 moves.push(doubleForward)
             }
         }
 
         // normal captures
         for (const [dx, dy] of cfg.captures) {
-            const target = { x: coord.x + dx, y: coord.y + dy * dir }
-            if (inBounds(this.boardConfig, target)) {
-                const targetPiece = this.board[target.y][target.x]
-                if (targetPiece && targetPiece.c !== piece.c) {
+            const target = Coordinate.fromIndex({ x: coord.x + dx, y: coord.y + dy * dir })
+            if (this.board.inBounds(target)) {
+                const targetPiece = this.board.getPiece(target)
+                if (targetPiece && targetPiece.color !== piece.color) {
                     moves.push(target)
                 }
             }
@@ -242,13 +260,12 @@ export class Game {
         if (this.lastDoublePawn) {
             const ep = this.lastDoublePawn
             if (
-                ep.color !== piece.c &&
-                coord.y === (piece.c === 'w' ? 3 : 4) && // row where en passant is possible
-                Math.abs(ep.x - coord.x) === 1 &&
-                ep.y === coord.y
+                ep.color !== piece.color &&
+                Math.abs(ep.position.x - coord.x) === 1 &&
+                ep.position.y === coord.y
             ) {
                 // target square is diagonally ahead
-                moves.push({ x: ep.x, y: coord.y + dir })
+                moves.push(Coordinate.fromIndex({ x: ep.position.x, y: coord.y + dir }))
             }
         }
 
@@ -258,9 +275,9 @@ export class Game {
     private generateLeaperMoves(coord: Coordinate, piece: Piece, cfg: Extract<MoveConfig, { type: 'leaper' }>): Coordinate[] {
         const moves: Coordinate[] = []
         for (const [dx, dy] of cfg.deltas) {
-            const target = { x: coord.x + dx, y: coord.y + dy }
-            if (!inBounds(this.boardConfig, target)) continue
-            if (!this.board[target.y][target.x] || this.board[target.y][target.x]!.c !== piece.c) {
+            const target = Coordinate.fromIndex({ x: coord.x + dx, y: coord.y + dy })
+            if (!this.board.inBounds(target)) continue
+            if (!this.board.getPiece(target) || this.board.getPiece(coord)!.color !== piece.color) {
                 moves.push(target)
             }
         }
@@ -271,44 +288,34 @@ export class Game {
         const moves: Coordinate[] = []
         for (const [dx, dy] of cfg.dirs) {
             let steps = 0
-            let target = { x: coord.x + dx, y: coord.y + dy }
-            while (inBounds(this.boardConfig, target)) {
+            let target = Coordinate.fromIndex({ x: coord.x + dx, y: coord.y + dy })
+            while (this.board.inBounds(target)) {
                 steps++
-                const occupant = this.board[target.y][target.x]
+                const occupant = this.board.getPiece(target)
                 if (!occupant) {
-                    moves.push({ ...target })
+                    moves.push(target.copy())
                 } else {
-                    if (occupant.c !== piece.c) moves.push({ ...target })
+                    if (occupant.color !== piece.color) moves.push(target.copy())
                     break
                 }
                 if (cfg.range && steps >= cfg.range) break
-                target = { x: target.x + dx, y: target.y + dy }
+                target = Coordinate.fromIndex({ x: target.x + dx, y: target.y + dy })
             }
         }
 
-        if (cfg.castling) {
-            const rights = this.castleRights[piece.c]
-            const row = piece.c === 'w' ? 7 : 0
-            if (rights.kingSide && this.board[row][5] === null && this.board[row][6] === null && this.board[row][7]?.t === 'r') {
-                moves.push({ x: 6, y: row })
-            }
-            if (rights.queenSide && this.board[row][1] === null && this.board[row][2] === null && this.board[row][3] === null && this.board[row][0]?.t === 'r') {
-                moves.push({ x: 2, y: row })
-            }
-        }
+        //TODO: Support Fischer Random
+        // if (cfg.castling) {
+        //     const rights = this.castleRights[piece.color]
+        //     const row = piece.color === 'w' ? 7 : 0
+        //     if (rights.kingSide && this.board[row][5] === null && this.board[row][6] === null && this.board[row][7]?.type === 'r') {
+        //         moves.push(Coordinate.fromIndex({ x: 6, y: row }))
+        //     }
+        //     if (rights.queenSide && this.board[row][1] === null && this.board[row][2] === null && this.board[row][3] === null && this.board[row][0]?.type === 'r') {
+        //         moves.push(Coordinate.fromIndex({ x: 2, y: row }))
+        //     }
+        // }
 
         return moves
-    }
-
-
-    //TODO: Board should be initialized by BoardLoader
-    private initBoard(boardConfig: BoardConfig): BoardGrid {
-        const grid: BoardGrid = Array.from({ length: boardConfig.height }, () => Array(boardConfig.width).fill(null))
-        for (const p of boardConfig.pieces) {
-            if (!this.piecesConfig[p.piece]) throw new Error(`Unknown piece type ${p.piece}`)
-            grid[p.position.y][p.position.x] = { t: p.piece, c: p.color }
-        }
-        return grid
     }
 
     private initCards(color: Color): Card[] {
@@ -319,9 +326,5 @@ export class Game {
             }
         }
         return cards
-    }
-
-    private cloneBoard(): BoardGrid {
-        return this.board.map(row => row.map(c => (c ? { ...c } : null)))
     }
 }

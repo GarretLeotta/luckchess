@@ -2,7 +2,7 @@
     "p": {
         "type": "pawn",
         "deltas": [[0,1]],
-        "doubleStart": [6,1],
+        "doubleStart": [1,6],
         "captures": [[-1,1],[1,1]],
         "promotions": ["q","r","b","n"]
     },

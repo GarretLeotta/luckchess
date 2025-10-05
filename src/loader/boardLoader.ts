@@ -1,43 +1,47 @@
-import type { Color, PieceType, Coordinate } from '../types.js'
+import type { Color, Piece, PieceType } from '../types.js'
+import { Coordinate } from '../coordinate.js'
 
-export interface BoardPiece {
-    color: Color
-    piece: PieceType
-    position: Coordinate
-}
-
-//TODO: BoardConfig should be a class
-export function inBounds(boardConfig: BoardConfig, c: Coordinate) {
-    return c.x >= 0 && c.x < boardConfig.width && c.y >= 0 && c.y < boardConfig.height
-}
-
-export interface BoardConfig {
+export class BoardConfig {
     width: number
     height: number
-    pieces: BoardPiece[]
-}
+    pieces: Piece[]
 
-export async function loadBoardConfig(filepath: string): Promise<BoardConfig> {
-    const resp = await fetch(filepath)
-    const raw = await resp.json()
+    constructor(width: number, height: number, pieces: Piece[]) {
+        this.width = width
+        this.height = height
+        this.pieces = pieces
+    }
 
-    if (typeof raw.width !== 'number') throw new Error('Board width must be a number')
-    if (typeof raw.height !== 'number') throw new Error('Board height must be a number')
-    if (!Array.isArray(raw.pieces)) throw new Error('Board must have pieces array')
+    inBounds(c: Coordinate): boolean {
+        return c.x >= 0 && c.x < this.width && c.y >= 0 && c.y < this.height
+    }
 
-    const pieces: BoardPiece[] = raw.pieces.map((p: any) => {
-        if (p.c !== 'w' && p.c !== 'b') throw new Error(`Invalid color: ${p.c}`)
-        if (typeof p.t !== 'string') throw new Error('Invalid piece id')
-        //TODO: check that pieces are in bounds
-        if (typeof p.pos?.x !== 'number' || typeof p.pos?.y !== 'number') {
-            throw new Error('Invalid position')
-        }
-        return {
-            color: p.c,
-            piece: p.t,
-            position: { x: p.pos.x, y: p.pos.y }
-        }
-    })
+    static async load(filepath: string): Promise<BoardConfig> {
+        const resp = await fetch(filepath)
+        const raw = await resp.json()
 
-    return { width: raw.width, height: raw.height, pieces }
+        if (typeof raw.width !== 'number') throw new Error('Board width must be a number')
+        if (typeof raw.height !== 'number') throw new Error('Board height must be a number')
+        if (!Array.isArray(raw.pieces)) throw new Error('Board must have pieces array')
+
+        const pieces: Piece[] = raw.pieces.map((p: any) => {
+            //TODO: piece colors should be based off configs
+            if (p.c !== 'w' && p.c !== 'b') throw new Error(`Invalid color: ${p.c}`)
+            if (typeof p.t !== 'string') throw new Error('Invalid piece id')
+            if (typeof p.pos !== 'string') throw new Error(`Invalid Position: ${p.pos} must be algebraic string`)
+
+            const position = Coordinate.fromAlgebraic(p.pos)
+            if (position.x < 0 || position.x >= raw.width || position.y < 0 || position.y >= raw.height) {
+                throw new Error(`Piece out of bounds: ${p.pos}`)
+            }
+
+            return {
+                type: p.t,
+                position: position,
+                color: p.c
+            }
+        })
+
+        return new BoardConfig(raw.width, raw.height, pieces)
+    }
 }

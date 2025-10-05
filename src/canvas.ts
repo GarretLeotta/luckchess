@@ -1,6 +1,8 @@
-import { PieceType, BoardGrid, Coordinate } from './types.js'
+import { PieceType } from './types.js'
 import { MoveWithCard } from './game.js'
-import { BoardConfig, inBounds } from './loader/boardLoader.js'
+import { BoardConfig } from './loader/boardLoader.js'
+import { Coordinate } from './coordinate.js'
+import { Board } from './board.js'
 
 /**
  * Handles rendering and interaction with the Game board on an HTML canvas.
@@ -47,9 +49,10 @@ export class Canvas {
         const x = (screenX - rect.left) * scaleX
         const y = (screenY - rect.top) * scaleY - this.offsetY
         const bx = Math.floor(x / this.cell)
-        const by = Math.floor(y / this.cell)
-        if (inBounds(this.boardConfig, { x: bx, y: by })) {
-            return { x: bx, y: by }
+        const by = this.boardConfig.height - 1 - Math.floor(y / this.cell)
+        const coordinate = Coordinate.fromIndex({ x: bx, y: by })
+        if (this.boardConfig.inBounds(coordinate)) {
+            return coordinate
         } else {
             return null
         }
@@ -63,7 +66,8 @@ export class Canvas {
     private boardToScreen(coord: Coordinate) {
         return {
             cx: coord.x * this.cell,
-            cy: coord.y * this.cell + this.offsetY
+            cy: (this.boardConfig.height - 1 - coord.y) * this.cell +
+                this.offsetY
         }
     }
 
@@ -73,12 +77,12 @@ export class Canvas {
      * @param selected Currently selected square (if any)
      * @param legal Array of legal moves for the selected piece
      */
-    draw(board: BoardGrid, selected: Coordinate | null, legal: MoveWithCard[]) {
+    draw(board: Board, selected: Coordinate | null, legal: MoveWithCard[]) {
         this.drawBoard()
         if (selected) this.highlightSelected(selected)
 
         for (const m of legal) {
-            const target = board[m.move.y][m.move.x]
+            const target = board.getPiece(m.move)
             if (target) {
                 this.drawCaptureIndicator(m.move, !!m.card)
             } else {
@@ -88,8 +92,9 @@ export class Canvas {
 
         for (let y = 0; y < 8; y++) {
             for (let x = 0; x < 8; x++) {
-                const p = board[y][x]
-                if (p) this.drawPiece({ x, y }, p.t, p.c)
+                const p = board.getPiece(Coordinate.fromIndex({x: x, y: y}))
+                //TODO: Pieces should have a draw method
+                if (p) this.drawPiece(Coordinate.fromIndex({ x, y }), p.type, p.color)
             }
         }
     }
@@ -98,11 +103,11 @@ export class Canvas {
      * Draw the chessboard background.
      */
     private drawBoard() {
-        for (let y = 0; y < 8; y++) {
-            for (let x = 0; x < 8; x++) {
-                const coord: Coordinate = { x, y }
+        for (let x = 0; x < this.boardConfig.width; x++) {
+            for (let y = 0; y < this.boardConfig.height; y++) {
+                const coord: Coordinate = Coordinate.fromIndex({ x, y })
                 const { cx, cy } = this.boardToScreen(coord)
-                const light = (x + y) % 2 === 0
+                const light = (x + y) % 2 !== 0
                 this.ctx.fillStyle = light ? '#eeeed2' : '#769656'
                 this.ctx.fillRect(cx, cy, this.cell, this.cell)
             }

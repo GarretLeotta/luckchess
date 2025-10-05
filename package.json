@@ -5,7 +5,7 @@
     "main": "main.js",
     "type": "module",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
+        "test": "vitest",
         "build": "tsc && npm run build:cp-public",
         "build:cp-public": "cp ./public/** ./dist",
         "type": "tsc --noEmit",
@@ -25,6 +25,8 @@
     "devDependencies": {
         "@types/node": "^24.6.2",
         "live-server": "^1.2.2",
-        "typescript": "^5.9.3"
+        "ts-node": "^10.9.2",
+        "typescript": "^5.9.3",
+        "vitest": "^3.2.4"
     }
 }
