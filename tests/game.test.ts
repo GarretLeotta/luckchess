@@ -26,7 +26,7 @@ beforeAll(async () => {
     movesConfig = await loadMovesConfig('./tests/data/moves.json')
     piecesConfig = await loadPiecesConfig('./tests/data/pieces.json')
     boardConfig = await BoardConfig.load('./tests/data/boards/test.json')
-    cardsConfig = await loadCardsConfig('./tests/data/cards.json')
+    cardsConfig = await loadCardsConfig('./tests/data/cards/test.json')
 })
 
 describe('Game', () => {

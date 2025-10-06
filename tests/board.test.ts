@@ -1,8 +1,4 @@
-import { Game } from '../src/game.js'
 import { BoardConfig } from '../src/loader/boardLoader.js'
-import { CardsConfig, loadCardsConfig } from '../src/loader/cardsLoader.js'
-import { loadMovesConfig, MovesConfig } from '../src/loader/movesLoader.js'
-import { loadPiecesConfig, PiecesConfig } from '../src/loader/piecesLoader.js'
 
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import { readFile } from 'fs/promises'

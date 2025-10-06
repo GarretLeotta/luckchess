@@ -1,5 +1,5 @@
-import type { PieceType } from '../types.js'
 
+//TODO: this needs re-working, should allow a list of leaper, slider, etc, maybe queens can castle
 export type MoveConfig =
     | {
         type: 'pawn'

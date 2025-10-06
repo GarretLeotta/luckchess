@@ -6,9 +6,10 @@ import { loadMovesConfig } from './loader/movesLoader.js'
 import { loadPiecesConfig } from './loader/piecesLoader.js'
 import { Coordinate } from './coordinate.js'
 
-//TODO: separate SideBarRenderer and GameboardRenderer
+//TODO: separate SideBarRenderer and GameboardRenderer - Really?
 const statusEl = document.getElementById('status')
 const canvasEl = document.getElementById('board') as HTMLCanvasElement
+const drawBtn = document.getElementById('draw-btn')
 
 const movesConfig = await loadMovesConfig('/src/data/moves.json')
 const piecesConfig = await loadPiecesConfig('/src/data/pieces.json')
@@ -20,22 +21,38 @@ const cardsConfig = await loadCardsConfig('/src/data/cards.json')
 const game = new Game(movesConfig, piecesConfig, boardConfig, cardsConfig)
 const canvas = new Canvas(canvasEl, boardConfig, (cx, cy) => {
     const result = game.select(Coordinate.fromIndex({ x: cx, y: cy }))
+    // console.log(`SelectResult: ${JSON.stringify(result)}`)
+    updateUI()
+
+    // if (result.moved) {
+    //     if (result.captured) {
+    //         statusEl!.textContent = `Captured ${result.captured.color.toUpperCase()}${result.captured.type.toUpperCase()}`
+    //     } else {
+    //         statusEl!.textContent = ''
+    //     }
+
+    //     if (result.gameOver) {
+    //         statusEl!.textContent = `${game.turn === 'w' ? 'Black' : 'White'} wins!`
+    //     }
+    // }
+})
+
+if (drawBtn) {
+    //TODO: only clickable if cards still in deck
+    drawBtn.addEventListener('click', () => {
+        const status = game.drawCards().status
+        if (statusEl) {
+            statusEl.textContent = status
+        }
+        updateUI()
+    })
+}
+
+function updateUI() {
     draw()
     updateTurnUI()
     updateHandsUI()
-
-    if (result.moved) {
-        if (result.captured) {
-            statusEl!.textContent = `Captured ${result.captured.color.toUpperCase()}${result.captured.type.toUpperCase()}`
-        } else {
-            statusEl!.textContent = ''
-        }
-
-        if (result.gameOver) {
-            statusEl!.textContent = `${game.turn === 'w' ? 'Black' : 'White'} wins!`
-        }
-    }
-})
+}
 
 function draw() {
     canvas.draw(game.board, game.selected, game.legal)
@@ -51,17 +68,16 @@ function updateHandsUI() {
     const blackEl = document.getElementById('hand-b')
     if (!whiteEl || !blackEl) return
 
+    game.players.w.cards
+    console.log(`White Cards: ${JSON.stringify(game.players.w.cards)}`)
+    console.log(`Black Cards: ${JSON.stringify(game.players.b.cards)}`)
     whiteEl.textContent = game.players.w.cards
-        .filter(c => !c.used)
         .map(c => `${c.pieceType.toUpperCase()} -> ${c.movesAs.toUpperCase()}`)
         .join(', ')
 
     blackEl.textContent = game.players.b.cards
-        .filter(c => !c.used)
         .map(c => `${c.pieceType.toUpperCase()} -> ${c.movesAs.toUpperCase()}`)
         .join(', ')
 }
 
-draw()
-updateTurnUI()
-updateHandsUI()
+updateUI()

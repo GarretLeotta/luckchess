@@ -1,6 +1,9 @@
 {
     "cards": [
         { "pieceType": "p", "movesAs": "r", "frequency": 4 },
-        { "pieceType": "q", "movesAs": "n", "frequency": 2 }
+        { "pieceType": "r", "movesAs": "b", "frequency": 4 },
+        { "pieceType": "b", "movesAs": "r", "frequency": 4 },
+        { "pieceType": "q", "movesAs": "n", "frequency": 2 },
+        { "pieceType": "k", "movesAs": "n", "frequency": 2 }
     ]
 }

@@ -16,6 +16,12 @@ beforeAll(() => {
 
 describe('Cards Initialization', () => {
     it('Loads an empty cards correctly', async () => {
+        cardsConfig = await loadCardsConfig('./tests/data/cards/empty.json')
+        expect(cardsConfig.cards.length).toBe(0)
+    })
 
+    it('Loads cards correctly', async () => {
+        cardsConfig = await loadCardsConfig('./tests/data/cards/test.json')
+        expect(cardsConfig.cards.length).toBe(2)
     })
 })

@@ -5,6 +5,7 @@ import { loadCardsConfig, CardsConfig } from './loader/cardsLoader.js'
 import { Card, Color, Piece } from './types.js'
 import { Coordinate } from './coordinate.js'
 import { Board } from './board.js'
+import { Deck } from './deck.js'
 
 //TODO: handle drawing cards as a move
 export type Move = {
@@ -25,27 +26,70 @@ export interface Player {
     cards: Card[]
 }
 
-export interface SelectResult {
-    moved: boolean
-    from?: Coordinate
-    to?: Coordinate
+// export interface SelectResult {
+//     moved: boolean
+//     from?: Coordinate
+//     to?: Coordinate
+//     card?: Card
+//     captured?: Piece
+//     gameOver: boolean
+// }
+
+export type SelectResult =
+    | PieceSelected
+    | InvalidSelection
+    | IllegalMove
+    | LegalMove
+
+export interface PieceSelected {
+    type: "PieceSelected"
+    piece: Piece
+}
+
+export interface InvalidSelection {
+    type: "InvalidSelection"
+    coord: Coordinate
+}
+
+export interface IllegalMove {
+    type: "IllegalMove"
+    from: Coordinate
+    to: Coordinate
+}
+
+export interface LegalMove {
+    type: "LegalMove"
+    from: Coordinate
+    to: Coordinate
     card?: Card
     captured?: Piece
     gameOver: boolean
 }
 
+export interface DrawResult {
+    status: string
+}
+
+const CARDS_PER_DRAW = 3;
+const START_CARDS = 3;
+
 export class Game {
+    //gross game state
     board: Board
+    deck: Deck
+    //fine game state
     turn: Color
     selected: Coordinate | null
+    //TODO: remove legal, cross-turn state like this should be minimized
     legal: MoveWithCard[]
     players: Record<Color, Player>
+    gameOver: boolean
+    //special game logic (should be configurable via custom scripting)
     lastDoublePawn: Piece | null
     castleRights: { [C in Color]: { kingSide: boolean; queenSide: boolean } }
-    gameOver: boolean
+    //configs
     movesConfig: MovesConfig
     piecesConfig: PiecesConfig
-    cardsConfig: CardsConfig
 
     constructor(
         movesConfig: MovesConfig,
@@ -56,14 +100,14 @@ export class Game {
         this.movesConfig = movesConfig
         this.piecesConfig = piecesConfig
         this.board = Board.fromConfig(boardConfig)
-        this.cardsConfig = cardsConfig
+        this.deck = new Deck(cardsConfig)
 
         this.turn = 'w'
         this.selected = null
         this.legal = []
         this.players = {
-            w: { color: 'w', cards: this.initCards('w') },
-            b: { color: 'b', cards: this.initCards('b') }
+            w: { color: 'w', cards: this.deck.draw(START_CARDS) },
+            b: { color: 'b', cards: this.deck.draw(START_CARDS) }
         }
         this.lastDoublePawn = null
         this.castleRights = {
@@ -73,7 +117,7 @@ export class Game {
         this.gameOver = false
     }
 
-    //TODO: take a root prefix
+    //TODO: selectable in UI
     static async create(): Promise<Game> {
         const [moves, pieces, board, cards] = await Promise.all([
             loadMovesConfig('/src/data/moves.json'),
@@ -84,12 +128,25 @@ export class Game {
         return new Game(moves, pieces, board, cards)
     }
 
-    get currentHand() {
-        return this.players[this.turn].cards.filter(c => !c.used)
+    get currentPlayer() {
+        return this.players[this.turn]
     }
 
+
+    /**
+     * Handles selecting a coordinate on the board.
+     * If the coordinate is empty or holds a piece owned by another player, nothing
+     * happens.
+     * If the coordinate holds a piece owned by the player, that piece is selected.
+     * If there is a piece already selected, and the coordinate is a legal move for that
+     * piece, the piece moves.
+     * If there is a piece selected and the coordinate is an illegal move, the piece is
+     * deselected. I
+     * @param coord Coordinate the player wants to select
+     * @returns SelectResult
+     */
     select(coord: Coordinate): SelectResult {
-        // console.log(`Selected: ${coord.index} ${coord.algebraicPosition}`)
+        // console.log(`Selected: ${coord.algebraicPosition}, ${JSON.stringify(this.selected)}`)
         const clicked = this.board.getPiece(coord)
         if (this.selected) {
             const legalMove = this.legal.find(m => m.move.x === coord.x && m.move.y === coord.y)
@@ -98,19 +155,39 @@ export class Game {
                 const to = coord.copy()
                 const captured = this.board.getPiece(to) ?? undefined
                 this.makeMove(from, to, legalMove.card)
-                return { moved: true, from, to, card: legalMove.card, captured, gameOver: this.gameOver }
+                return { type: "LegalMove", from, to, card: legalMove.card, captured, gameOver: this.gameOver }
+            } else {
+                const result: SelectResult = { type: "IllegalMove", from: this.selected.copy(), to: coord }
+                this.selected = null
+                this.legal = []
+                return result
+            }
+        } else {
+            //No piece selected
+            if (clicked && clicked.color === this.turn) {
+                //Select a piece
+                this.selected = coord.copy()
+                this.legal = this.generateMoves(coord)
+                return { type: "PieceSelected", piece: clicked }
+            } else {
+                this.selected = null
+                this.legal = []
+                return { type: "InvalidSelection", coord: coord.copy() }
             }
         }
-        if (clicked && clicked.color === this.turn) {
-            this.selected = coord.copy()
-            this.legal = this.generateMoves(coord)
-        } else {
-            this.selected = null
-            this.legal = []
-        }
-        return { moved: false, gameOver: this.gameOver }
     }
 
+    //TODO: this should return a Move to another function
+    drawCards(): DrawResult {
+        this.currentPlayer.cards = this.deck.draw(CARDS_PER_DRAW)
+        //TODO: make method to represent changeTurn
+        this.turn = this.turn === 'w' ? 'b' : 'w'
+        this.selected = null
+        this.legal = []
+        return { status: `Drew ${this.currentPlayer.cards.length} Cards` }
+    }
+
+    //TODO: this should return a Move to another function
     makeMove(from: Coordinate, to: Coordinate, card?: Card) {
         const moving = this.board.getPiece(from)
         if (!moving) return
@@ -154,13 +231,13 @@ export class Game {
         if (moving.type === 'k' && Math.abs(to.x - from.x) === 2) {
             if (to.x > from.x) {
                 this.board.movePiece(
-                    Coordinate.fromIndex({x: 7, y: to.y}),
-                    Coordinate.fromIndex({x: 5, y: to.y}),
+                    Coordinate.fromIndex({ x: 7, y: to.y }),
+                    Coordinate.fromIndex({ x: 5, y: to.y }),
                 )
             } else {
                 this.board.movePiece(
-                    Coordinate.fromIndex({x: 3, y: to.y}),
-                    Coordinate.fromIndex({x: 0, y: to.y}),
+                    Coordinate.fromIndex({ x: 3, y: to.y }),
+                    Coordinate.fromIndex({ x: 0, y: to.y }),
                 )
             }
         }
@@ -180,13 +257,15 @@ export class Game {
             this.lastDoublePawn = moving
         }
 
-        if (card) card.used = true
-
+        //should add unique IDs to cards
+        if (card) {
+            card.used = true
+        }
+        this.currentPlayer.cards = this.currentPlayer.cards.filter(c => !c.used)
         this.turn = this.turn === 'w' ? 'b' : 'w'
         this.selected = null
         this.legal = []
     }
-
 
     generateMoves(coord: Coordinate): MoveWithCard[] {
         const piece = this.board.getPiece(coord)
@@ -195,8 +274,7 @@ export class Game {
         const moves: MoveWithCard[] = normalMoves.map(m => ({ move: m }))
         const occupied = new Set(normalMoves.map(m => `${m.x},${m.y}`))
 
-        this.currentHand.forEach(card => {
-            if (card.used) return
+        this.currentPlayer.cards.forEach(card => {
             if (card.pieceType === piece.type) {
                 const cardMoves = this.generateMovesForType(coord, card.movesAs)
                 cardMoves.forEach(m => {
@@ -316,15 +394,5 @@ export class Game {
         // }
 
         return moves
-    }
-
-    private initCards(color: Color): Card[] {
-        const cards: Card[] = []
-        for (const def of this.cardsConfig.cards) {
-            for (let i = 0; i < def.frequency; i++) {
-                cards.push({ pieceType: def.pieceType, movesAs: def.movesAs, used: false })
-            }
-        }
-        return cards
     }
 }
