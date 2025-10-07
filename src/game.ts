@@ -355,7 +355,7 @@ export class Game {
         for (const [dx, dy] of cfg.deltas) {
             const target = Coordinate.fromIndex({ x: coord.x + dx, y: coord.y + dy })
             if (!this.board.inBounds(target)) continue
-            if (!this.board.getPiece(target) || this.board.getPiece(coord)!.color !== piece.color) {
+            if (!this.board.getPiece(target) || this.board.getPiece(target)!.color !== piece.color) {
                 moves.push(target)
             }
         }

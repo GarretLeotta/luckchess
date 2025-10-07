@@ -44,13 +44,14 @@ describe('Game', () => {
         expect(game.board.getPiece(Coordinate.fromAlgebraic("A1"))).not.toBeNull()
     })
 
-    // it('selecting own piece generates legal moves', () => {
-    //     const coord = { x: 4, y: 6 }
-    //     const result = game.select(coord)
-    //     expect(result.moved).toBe(false)
-    //     expect(game.selected).toEqual(coord)
-    //     expect(game.legal.length).toBeGreaterThan(0)
-    // })
+    it('leapers can capture', () => {
+        const coord = Coordinate.fromAlgebraic("G3")
+        const result = game.select(coord)
+        console.log(JSON.stringify(result))
+        // expect(result.moved).toBe(false)
+        // expect(game.selected).toEqual(coord)
+        // expect(game.legal.length).toBeGreaterThan(0)
+    })
 
     // it('selecting empty square deselects', () => {
     //     game.select({ x: 4, y: 6 })

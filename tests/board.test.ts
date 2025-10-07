@@ -28,7 +28,7 @@ describe('Board', () => {
     it('initializes correctly', () => {
         expect(board.width).toBe(8)
         expect(board.height).toBe(8)
-        expect(board.allPieces().length).toBe(12)
+        expect(board.allPieces().length).toBe(15)
     })
 
     it('retrieves pieces', () => {
