@@ -7,7 +7,8 @@
     "scripts": {
         "test": "vitest",
         "build": "tsc && npm run build:cp-public",
-        "build:cp-public": "cp ./public/** ./dist",
+        "build:cp-public": "cp -r ./public/** ./dist",
+        "clean": "rm -rf ./dist/*",
         "type": "tsc --noEmit",
         "watch": "tsc --watch",
         "serve": "live-server ."

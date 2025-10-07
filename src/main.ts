@@ -11,12 +11,12 @@ const statusEl = document.getElementById('status')
 const canvasEl = document.getElementById('board') as HTMLCanvasElement
 const drawBtn = document.getElementById('draw-btn')
 
-const movesConfig = await loadMovesConfig('/src/data/moves.json')
-const piecesConfig = await loadPiecesConfig('/src/data/pieces.json')
-const boardConfig = await BoardConfig.load('/src/data/board.json')
-// const boardConfig = await BoardConfig.load('/src/data/standard_nocards/board.json')
-const cardsConfig = await loadCardsConfig('/src/data/cards.json')
-// const cardsConfig = await loadCardsConfig('/src/data/standard_nocards/cards.json')
+const movesConfig = await loadMovesConfig('/dist/data/moves.json')
+const piecesConfig = await loadPiecesConfig('/dist/data/pieces.json')
+const boardConfig = await BoardConfig.load('/dist/data/board.json')
+// const boardConfig = await BoardConfig.load('/dist/data/standard_nocards/board.json')
+const cardsConfig = await loadCardsConfig('/dist/data/cards.json')
+// const cardsConfig = await loadCardsConfig('/dist/data/standard_nocards/cards.json')
 
 const game = new Game(movesConfig, piecesConfig, boardConfig, cardsConfig)
 const canvas = new Canvas(canvasEl, boardConfig, (cx, cy) => {

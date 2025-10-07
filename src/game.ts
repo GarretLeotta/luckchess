@@ -120,10 +120,10 @@ export class Game {
     //TODO: selectable in UI
     static async create(): Promise<Game> {
         const [moves, pieces, board, cards] = await Promise.all([
-            loadMovesConfig('/src/data/moves.json'),
-            loadPiecesConfig('/src/data/pieces.json'),
-            BoardConfig.load('/src/data/board.json'),
-            loadCardsConfig('/src/data/cards.json'),
+            loadMovesConfig('/dist/data/moves.json'),
+            loadPiecesConfig('/dist/data/pieces.json'),
+            BoardConfig.load('/dist/data/board.json'),
+            loadCardsConfig('/dist/data/cards.json'),
         ])
         return new Game(moves, pieces, board, cards)
     }
